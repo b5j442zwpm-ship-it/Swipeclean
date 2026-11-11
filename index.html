@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Swipeclean – מוחק תמונות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0f12; --panel:#17191e; --panel2:#1f2228; --line:#2a2e36;
+    --text:#f2f3f5; --muted:#9aa1ad; --green:#1ed760; --red:#ff4d5e; --amber:#ffb547;
+    --radius:20px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Rubik,system-ui,sans-serif}
+  body{display:flex;flex-direction:column;min-height:100dvh;overscroll-behavior:none}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .logo{font-weight:800;font-size:20px;letter-spacing:-.3px}
+  .logo span{color:var(--red)}
+  .hdr{color:var(--muted);font-size:13px}
+  .linkbtn{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0}
+  main{flex:1;width:100%;max-width:520px;margin:0 auto;padding:18px;display:flex;flex-direction:column}
+  .screen{display:none;flex:1;flex-direction:column;gap:16px}
+  .screen.active{display:flex}
+  h1{font-size:26px;margin:6px 0 0;font-weight:800;letter-spacing:-.4px}
+  h2{font-size:18px;margin:0;font-weight:700}
+  p{margin:0;line-height:1.55;color:var(--muted)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px}
+  .btn{border:none;border-radius:999px;padding:14px 20px;font:inherit;font-weight:700;font-size:16px;cursor:pointer;background:var(--green);color:#06210f;transition:transform .1s,opacity .2s;text-align:center}
+  .btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.4;cursor:default}
+  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .btn.danger{background:var(--red);color:#2a0509}
+  .row{display:flex;gap:10px;align-items:center}
+  .row>.btn{flex:1}
+  .err{background:#3a1519;border:1px solid #6b2229;color:#ffc2c8;border-radius:12px;padding:12px 14px;font-size:14px;display:none;margin-bottom:12px}
+  .err.show{display:block}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
+  .toggle input{accent-color:var(--green);width:18px;height:18px;flex:none}
+  .source{display:flex;align-items:center;gap:14px;padding:14px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;text-align:start;font:inherit;color:var(--text);width:100%}
+  .source:active{transform:scale(.99)}
+  .source .ic{font-size:28px;width:44px;text-align:center;flex:none}
+  .source b{display:block;font-size:16px}
+  .source small{color:var(--muted);font-size:13px;line-height:1.45;display:block;margin-top:2px}
+  .source:disabled{opacity:.45;cursor:default}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#16261c;color:var(--green);margin-inline-start:6px;vertical-align:middle}
+
+  /* swipe */
+  .progress{display:flex;justify-content:space-between;font-size:14px;color:var(--muted)}
+  .bar{height:4px;background:var(--panel2);border-radius:4px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--green);width:0;transition:width .25s}
+  .deck{position:relative;flex:1;min-height:340px;touch-action:none}
+  .tcard{position:absolute;inset:0;border-radius:24px;overflow:hidden;background:var(--panel);border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.45);display:flex;flex-direction:column;will-change:transform;user-select:none;cursor:grab}
+  .tcard:active{cursor:grabbing}
+  .media{flex:1;min-height:0;position:relative;background:#0a0b0d;overflow:hidden}
+  .media .blur{position:absolute;inset:-20px;background:center/cover no-repeat;filter:blur(24px) brightness(.45)}
+  .media img,.media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+  .media video{pointer-events:auto}
+  .media .noprev{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px;font-size:14px}
+  .media .noprev div{font-size:44px;margin-bottom:8px}
+  .tcard .info{padding:12px 16px 14px;background:var(--panel);border-top:1px solid var(--line)}
+  .tcard .t{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr;text-align:right}
+  .tcard .x{color:var(--muted);font-size:13px;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+  .stamp{position:absolute;top:22px;z-index:3;font-weight:800;font-size:28px;padding:6px 14px;border:4px solid;border-radius:12px;opacity:0;transform:rotate(-12deg);background:rgba(0,0,0,.35)}
+  .stamp.keep{color:var(--green);border-color:var(--green);left:20px}
+  .stamp.del{color:var(--red);border-color:var(--red);right:20px;transform:rotate(12deg)}
+  .tcard.under{transform:scale(.95) translateY(12px);filter:brightness(.7)}
+  .actions{display:flex;justify-content:center;align-items:center;gap:22px;padding:6px 0 2px}
+  .round{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:28px;cursor:pointer;display:grid;place-items:center;transition:transform .1s;color:var(--text)}
+  .round:active{transform:scale(.9)}
+  .round.small{width:48px;height:48px;font-size:20px;color:var(--amber)}
+  .round.del{color:var(--red)}
+  .round.keep{color:var(--green)}
+  .round:disabled{opacity:.35}
+  .hint{text-align:center;font-size:13px;color:var(--muted)}
+
+  /* review */
+  .stats{display:flex;gap:10px}
+  .stat{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;text-align:center}
+  .stat b{display:block;font-size:22px}
+  .stat span{font-size:12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;overflow:auto;max-height:42dvh;padding:2px}
+  .cell{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--panel2);cursor:pointer;border:2px solid var(--red)}
+  .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .cell .fn{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:var(--muted);padding:6px;text-align:center;word-break:break-all;direction:ltr}
+  .cell .badge{position:absolute;top:4px;inset-inline-end:4px;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+  .cell.off{border-color:var(--line);opacity:.45}
+  .cell.off .badge{background:var(--green);color:#06210f}
+  .names{direction:ltr;text-align:left;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;max-height:22dvh;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
+  .big{font-size:56px;text-align:center}
+  .spinner{width:36px;height:36px;border:3px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:spin 1s linear infinite;margin:30px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .center{text-align:center}
+  .muted{color:var(--muted);font-size:14px}
+  .note{font-size:13px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;line-height:1.55}
+  .note b{color:var(--text)}
+  ol.steps{margin:0;padding-inline-start:20px;color:var(--muted);line-height:1.75;font-size:14px;display:flex;flex-direction:column;gap:8px}
+  ol.steps b{color:var(--text)}
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg button{flex:1;border:none;background:none;color:var(--muted);font:inherit;font-size:14px;padding:8px;border-radius:999px;cursor:pointer}
+  .seg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Swipe<span>clean</span></div>
+  <div class="hdr" id="hdr"></div>
+</header>
+
+<main>
+  <div class="err" id="err"></div>
+
+  <!-- 1. Pick source -->
+  <section class="screen active" id="s-start">
+    <div class="big" style="margin-top:8px">🧹</div>
+    <h1 class="center">מנקים את הגלריה בהחלקה</h1>
+    <p class="center">מחליקים ימינה על מה שנשאר ושמאלה על מה שנמחק. בסוף רואים את כל מה שסימנת, מתקנים אם צריך, ומוחקים בבת אחת.</p>
+
+    <div class="card">
+      <h2>מאיפה התמונות?</h2>
+      <button class="source" id="pickFolder">
+        <span class="ic">📁</span>
+        <span><b>תיקייה במחשב <span class="tag">מוחק באמת</span></b>
+        <small>Chrome או Edge במחשב. האתר מקבל גישה לתיקייה ומוחק ממנה את מה שסימנת.</small></span>
+      </button>
+      <button class="source" id="pickFiles">
+        <span class="ic">📱</span>
+        <span><b>תמונות מהאייפון <span class="tag">מוחק דרך קיצור דרך</span></b>
+        <small>בוחרים תמונות מהגלריה ומחליקים. בסוף קיצור דרך באייפון מוחק בפועל את מה שסימנת. בפעם הראשונה צריך להגדיר אותו (כ-3 דקות).</small></span>
+      </button>
+      <button class="source" id="pickAll">
+        <span class="ic">🖼</span>
+        <span><b>כל הגלריה</b>
+        <small>עוברים על כל התמונות באייפון, מהישנה לחדשה. אפשר לעצור באמצע ולהמשיך אחר כך מאותה נקודה.</small></span>
+      </button>
+      <button class="linkbtn" id="howShortcut1" style="align-self:flex-start">איך מגדירים את קיצור הדרך?</button>
+      <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden>
+    </div>
+
+    <div class="card">
+      <label class="toggle"><input type="checkbox" id="optVideos" checked> לכלול גם סרטונים</label>
+      <label class="toggle"><input type="checkbox" id="optSub"> לכלול תת־תיקיות</label>
+      <div>
+        <div class="muted" style="margin-bottom:8px">סדר</div>
+        <div class="seg" id="orderSeg">
+          <button data-v="old" class="on">מהישן לחדש</button>
+          <button data-v="new">מהחדש לישן</button>
+          <button data-v="big">הכי כבדות קודם</button>
+          <button data-v="rnd">אקראי</button>
+        </div>
+      </div>
+    </div>
+    <p class="muted center" id="folderNote"></p>
+  </section>
+
+  <!-- 2. Swipe -->
+  <section class="screen" id="s-swipe">
+    <div class="progress"><span id="progText"></span><span id="delText"></span></div>
+    <div class="bar"><i id="progBar"></i></div>
+    <div class="deck" id="deck"></div>
+    <div class="actions" dir="ltr">
+      <button class="round del" id="delBtn" title="למחוק (חץ שמאלה)">🗑</button>
+      <button class="round small" id="undoBtn" title="בטל (Backspace)">↶</button>
+      <button class="round keep" id="keepBtn" title="לשמור (חץ ימינה)">♥</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="finishEarly">סיימתי – לסיכום</button>
+    </div>
+    <div class="hint">ימינה = נשאר · שמאלה = נמחק · במחשב: חצים ו־Backspace</div>
+  </section>
+
+  <!-- 3. Review -->
+  <section class="screen" id="s-review">
+    <h1 id="revTitle">בטוח שאתה רוצה למחוק?</h1>
+    <div class="stats">
+      <div class="stat"><b id="stDel">0</b><span>למחיקה</span></div>
+      <div class="stat"><b id="stSize">0</b><span>מקום שיתפנה</span></div>
+      <div class="stat"><b id="stKeep">0</b><span>נשארות</span></div>
+    </div>
+    <p id="revSub" class="muted"></p>
+    <div class="grid" id="grid"></div>
+
+    <div id="folderActions" class="card">
+      <label class="toggle"><input type="checkbox" id="optTrash" checked> להעביר לתיקייה <b style="color:var(--text)">&nbsp;_נמחקו&nbsp;</b> במקום מחיקה סופית (אפשר לשחזר)</label>
+      <button class="btn danger" id="deleteBtn">מחק</button>
+    </div>
+
+    <div id="filesActions" class="card">
+      <button class="btn danger" id="phoneDelBtn">כן, מחק מהאייפון</button>
+      <p class="muted">התמונות יעברו ל"נמחקו לאחרונה" באפליקציית התמונות, ואפשר לשחזר אותן משם במשך 30 יום.</p>
+      <div id="manualBox" style="display:none;flex-direction:column;gap:10px">
+        <div class="note" id="manualNote"></div>
+        <div class="names" id="names"></div>
+        <button class="btn ghost" id="copyNames">העתק רשימה</button>
+      </div>
+      <button class="linkbtn" id="howShortcut2" style="align-self:flex-start">עוד לא הגדרת את קיצור הדרך? כך עושים את זה</button>
+    </div>
+
+    <div class="row">
+      <button class="btn ghost" id="backToSwipe">חזרה להחלקה</button>
+      <button class="btn ghost" id="restart">התחל מחדש</button>
+    </div>
+  </section>
+
+  <!-- whole gallery -->
+  <section class="screen" id="s-all">
+    <h1>בחירת כל הגלריה</h1>
+    <p>אתר לא יכול לפתוח את כל הגלריה בעצמו, אבל בחלון הבחירה של האייפון אפשר לסמן אלפי תמונות בתנועה אחת:</p>
+    <div class="card">
+      <ol class="steps">
+        <li>לחץ על <b>פתח את הגלריה</b> למטה. אם נפתח תפריט, בחר <b>ספריית תמונות</b> (Photo Library).</li>
+        <li>הנח את האצבע על <b>התמונה האחרונה</b> (למטה מימין), ו<b>גרור אותה למעלה ושמאלה בלי להרים</b>, עד הקצה העליון של המסך.</li>
+        <li>השאר את האצבע בקצה העליון: המסך יגלול לבד ויסמן את כל התמונות בדרך, עד ההתחלה של הגלריה.</li>
+        <li>לחץ <b>הוסף</b> (Add). עם אלפי תמונות, האייפון יכול להכין אותן כמה דקות.</li>
+      </ol>
+      <div class="note"><b>טיפ:</b> בגלריה גדולה מאוד (יותר מ-2,000 תמונות) עדיף לעבוד בסבבים של כ-1,000. האתר זוכר מה כבר מיינת, ותמונות שכבר עברת עליהן לא יחזרו.</div>
+    </div>
+    <button class="btn" id="allOpen">פתח את הגלריה</button>
+    <button class="btn ghost" id="allBack">חזרה</button>
+  </section>
+
+  <!-- iPhone: sent to shortcut -->
+  <section class="screen" id="s-sent">
+    <div style="flex:1"></div>
+    <div class="big">📲</div>
+    <h1 class="center">עכשיו באפליקציית קיצורים</h1>
+    <p class="center" id="sentSub"></p>
+    <div class="note">אם קיצורים לא נפתח: פתח אותו לבד והרץ את <b>Swipeclean</b>. הרשימה כבר הועתקה ללוח, וקיצור הדרך יקרא אותה משם.</div>
+    <details class="muted"><summary>הלוח לא עובד? העתק מכאן ידנית</summary>
+      <textarea id="payloadBox" readonly dir="ltr" style="width:100%;height:90px;margin-top:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;font-size:11px" onclick="this.select()"></textarea>
+    </details>
+    <button class="btn" id="sentDone">המחיקה הצליחה ✓</button>
+    <a class="btn ghost" id="sentAgain" target="_top" rel="noopener" style="text-decoration:none">פתח את קיצור הדרך</a>
+    <button class="btn ghost" id="sentBack">חזרה לסיכום</button>
+    <div style="flex:1"></div>
+  </section>
+
+  <!-- iPhone: shortcut setup -->
+  <section class="screen" id="s-setup">
+    <h1>הגדרת קיצור הדרך</h1>
+    <p>עושים את זה פעם אחת בלבד. דפדפן לא יכול למחוק מהגלריה בעצמו, אז האתר מעביר לקיצור הדרך את רשימת התמונות (לפי זמן הצילום המדויק, עד השנייה), וקיצור הדרך מוחק אותן.</p>
+    <div class="card">
+      <ol class="steps">
+        <li>פתח את אפליקציית <b>קיצורים</b> (Shortcuts), לחץ <b>+</b> וקרא לקיצור הדרך בדיוק <b dir="ltr">Swipeclean</b>.</li>
+        <li>הוסף את הפעולה <b>Get Dictionary from Input</b> (קבל מילון מהקלט). למעלה יופיע "Receive <i>Any</i> input from <i>Nowhere</i>". ליד <b>If there's no input</b> בחר <b>Get Clipboard</b>.</li>
+        <li>הוסף <b>Get Dictionary Value</b>, מפתח <b dir="ltr">from</b>, ואחריו <b>Set Variable</b> בשם <b dir="ltr">From</b>.</li>
+        <li>שוב <b>Get Dictionary Value</b> על ה-Dictionary מצעד 2, מפתח <b dir="ltr">to</b>, ואחריו <b>Set Variable</b> בשם <b dir="ltr">To</b>.</li>
+        <li>שוב <b>Get Dictionary Value</b> על ה-Dictionary, מפתח <b dir="ltr">times</b>, ואחריו <b>Set Variable</b> בשם <b dir="ltr">Times</b>.</li>
+        <li>הוסף <b>Find Photos</b> ← Add Filter ← <b>Date Taken</b> ← <b>is between</b>. בשני השדות בחר את המשתנים <b dir="ltr">From</b> ו-<b dir="ltr">To</b>. בטל את Limit.</li>
+        <li>הוסף <b>Repeat with Each</b> על Photos.</li>
+        <li>בתוך הלולאה: <b>Format Date</b>. לחץ על Date ובחר <b>Repeat Item</b>, ואז לחץ עליו שוב ובחר <b>Date Taken</b>. Date Format: <b>Custom</b>, ובשדה הפורמט כתוב: <code style="display:inline;padding:2px 6px">yyyy-MM-dd HH:mm:ss</code></li>
+        <li>עדיין בלולאה: <b>If</b> ← בחר את <b dir="ltr">Times</b> ← <b>contains</b> ← <b>Formatted Date</b>.</li>
+        <li>בתוך ה-If: <b>Add to Variable</b>, בחר <b>Repeat Item</b>, שם המשתנה <b dir="ltr">ToDelete</b>.</li>
+        <li>אחרי End Repeat (מחוץ ללולאה): <b>Delete Photos</b> ← בחר <b dir="ltr">ToDelete</b>.</li>
+      </ol>
+      <div class="note"><b>בדיקה ראשונה:</b> צלם 2-3 צילומי מסך, סמן אותם למחיקה באתר, ובדוק שרק הם נמחקו. האייפון תמיד ישאל "בטוח?" לפני המחיקה ויראה כמה תמונות יימחקו, אז אם המספר לא נכון אפשר לבטל.</div>
+    </div>
+    <button class="btn ghost" id="setupBack">חזרה</button>
+  </section>
+
+  <!-- 4. Done -->
+  <section class="screen" id="s-done">
+    <div style="flex:1"></div>
+    <div class="big">✨</div>
+    <h1 class="center" id="doneTitle"></h1>
+    <p class="center" id="doneSub"></p>
+    <button class="btn" id="again">ניקוי נוסף</button>
+    <div style="flex:1"></div>
+  </section>
+
+  <!-- loading -->
+  <section class="screen" id="s-loading">
+    <div style="flex:1"></div>
+    <div class="spinner"></div>
+    <p class="center" id="loadingText">טוען…</p>
+    <div style="flex:1"></div>
+  </section>
+</main>
+
+<script src="exifr.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const store = {
+    get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} }
+  };
+  function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); hideErr(); }
+  function loading(t) { $('loadingText').textContent = t || 'טוען…'; show('s-loading'); }
+  function showErr(m) { const e = $('err'); e.textContent = m; e.classList.add('show'); }
+  function hideErr() { $('err').classList.remove('show'); }
+  const fmtSize = (b) => b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' KB'
+    : b < 1024 ** 3 ? (b / 1024 / 1024).toFixed(1) + ' MB' : (b / 1024 ** 3).toFixed(2) + ' GB';
+  const fmtDate = (ms) => new Date(ms).toLocaleString('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  const IMG_RE = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?|dng|raw|cr2|nef|arw)$/i;
+  const VID_RE = /\.(mp4|mov|m4v|webm|avi|mkv|3gp)$/i;
+  const isMedia = (name, type) => {
+    const vid = (type || '').startsWith('video/') || VID_RE.test(name);
+    const img = (type || '').startsWith('image/') || IMG_RE.test(name);
+    if (vid) return $('optVideos').checked ? 'video' : null;
+    return img ? 'image' : null;
+  };
+
+  // ---------- state ----------
+  // item: { key, name, path, size, date, kind, file, parent (dir handle, folder mode) }
+  let mode = null;          // 'folder' | 'files'
+  let rootDir = null;
+  let items = [];
+  let order = 'old';
+  let S = null;             // { idx, dec: {key:'k'|'d'}, history:[key] }
+  const DEC_KEY = 'swc_decisions';   // remembered across visits, keyed by file identity
+  const remembered = store.get(DEC_KEY) || {};
+  const saveDecisions = () => {
+    Object.assign(remembered, S.dec);
+    // keep the memory bounded
+    const keys = Object.keys(remembered);
+    if (keys.length > 20000) keys.slice(0, keys.length - 20000).forEach(k => delete remembered[k]);
+    store.set(DEC_KEY, remembered);
+  };
+
+  // ---------- source: folder ----------
+  const canFolder = 'showDirectoryPicker' in window;
+  if (!canFolder) {
+    $('pickFolder').disabled = true;
+    $('folderNote').textContent = 'בחירת תיקייה עם מחיקה אמיתית זמינה רק ב־Chrome או Edge במחשב.';
+  }
+
+  async function collect(dir, prefix, out, deep) {
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind === 'directory') {
+        if (deep && name !== '_נמחקו' && !name.startsWith('.')) await collect(h, prefix + name + '/', out, deep);
+        continue;
+      }
+      if (name.startsWith('.')) continue;
+      const kind = isMedia(name, '');
+      if (!kind) continue;
+      const file = await h.getFile();
+      out.push({ name, path: prefix + name, size: file.size, date: file.lastModified, kind, file, parent: dir });
+      if (out.length % 50 === 0) $('loadingText').textContent = `סורק תיקייה… נמצאו ${out.length}`;
+    }
+  }
+
+  $('pickFolder').onclick = async () => {
+    try {
+      rootDir = await window.showDirectoryPicker({ id: 'swipeclean', mode: 'readwrite' });
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      showErr(e.name === 'SecurityError'
+        ? 'הדפדפן חוסם גישה לתיקיות בתוך התצוגה הזו. פתח את האתר בלשונית משלו ונסה שוב.'
+        : 'לא הצלחתי לפתוח את התיקייה: ' + e.message);
+      return;
+    }
+    loading('סורק תיקייה…');
+    const out = [];
+    try { await collect(rootDir, '', out, $('optSub').checked); }
+    catch (e) { show('s-start'); showErr('שגיאה בסריקה: ' + e.message); return; }
+    mode = 'folder';
+    $('hdr').textContent = '📁 ' + rootDir.name;
+    begin(out);
+  };
+
+  // ---------- source: file picker ----------
+  $('pickFiles').onclick = () => $('fileInput').click();
+  $('pickAll').onclick = () => show('s-all');
+  $('allOpen').onclick = () => { $('fileInput').click(); };
+  $('allBack').onclick = () => show('s-start');
+  $('fileInput').onchange = async () => {
+    const out = [];
+    for (const f of $('fileInput').files) {
+      const kind = isMedia(f.name, f.type);
+      if (kind) out.push({ name: f.name, path: f.name, size: f.size, date: f.lastModified, kind, file: f });
+    }
+    $('fileInput').value = '';
+    loading('קורא את זמני הצילום…');
+    let next = 0, doneN = 0;
+    const worker = async () => {
+      while (next < out.length) {
+        const it = out[next++];
+        const ms = await takenMs(it.file);
+        if (ms) { it.date = ms; it.taken = fmtStamp(ms); }
+        if (++doneN % 25 === 0) $('loadingText').textContent = `קורא את זמני הצילום… ${doneN}/${out.length}`;
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    mode = 'files';
+    $('hdr').textContent = '';
+    begin(out);
+  };
+
+  // ---------- capture time (EXIF), formatted exactly like the iPhone shortcut does ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmtStamp = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  async function takenMs(file) {
+    if (!window.exifr) return null;
+    let m;
+    try { m = await exifr.parse(file, { xmp: true, reviveValues: false, translateValues: false, mergeOutput: true }); } catch { return null; }
+    if (!m) return null;
+    const raw = String(m.DateTimeOriginal || m.CreateDate || m.DateCreated || m.DateTimeDigitized || '');
+    const r = raw.match(/(\d{4})[:-](\d\d)[:-](\d\d)[ T](\d\d):(\d\d):(\d\d)(?:\.\d+)?\s*(Z|[+-]\d\d:?\d\d)?/);
+    if (!r) return null;
+    const [y, mo, d, h, mi, se] = r.slice(1, 7).map(Number);
+    const off = String(m.OffsetTimeOriginal || m.OffsetTime || r[7] || '');
+    const o = off === 'Z' ? [0, 0, 0] : off.match(/([+-])(\d\d):?(\d\d)/);
+    if (o) {
+      const mins = off === 'Z' ? 0 : (o[1] === '-' ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
+      return Date.UTC(y, mo - 1, d, h, mi, se) - mins * 60000;
+    }
+    return new Date(y, mo - 1, d, h, mi, se).getTime();
+  }
+
+  document.querySelectorAll('#orderSeg button').forEach(b => b.onclick = () => {
+    order = b.dataset.v;
+    document.querySelectorAll('#orderSeg button').forEach(x => x.classList.toggle('on', x === b));
+  });
+
+  function begin(list) {
+    if (!list.length) { show('s-start'); showErr('לא נמצאו תמונות' + ($('optVideos').checked ? ' או סרטונים' : '') + '.'); return; }
+    list.forEach(it => it.key = it.path + '|' + it.size + '|' + it.date);
+    if (order === 'old') list.sort((a, b) => a.date - b.date);
+    else if (order === 'new') list.sort((a, b) => b.date - a.date);
+    else if (order === 'big') list.sort((a, b) => b.size - a.size);
+    else for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+
+    // photos already decided on a previous visit go first, so we resume after them
+    const done = list.filter(it => remembered[it.key]);
+    const todo = list.filter(it => !remembered[it.key]);
+    items = [...done, ...todo];
+    S = { idx: done.length, dec: {}, history: [] };
+    done.forEach(it => S.dec[it.key] = remembered[it.key]);
+
+    show('s-swipe');
+    renderDeck();
+    if (done.length && todo.length) {
+      showErr(`ממשיך מאיפה שעצרת: ${done.length} כבר מוינו בפעם הקודמת (↶ כדי לחזור אליהן).`);
+      setTimeout(hideErr, 4000);
+    }
+  }
+
+  // ---------- media URLs (kept small: only what's on screen) ----------
+  const urls = new Map();
+  const urlFor = (it) => { if (!urls.has(it.key)) urls.set(it.key, URL.createObjectURL(it.file)); return urls.get(it.key); };
+  function releaseExcept(keepKeys) {
+    for (const [k, u] of urls) if (!keepKeys.has(k)) { URL.revokeObjectURL(u); urls.delete(k); }
+  }
+
+  function mediaHTML(it, active) {
+    const u = urlFor(it);
+    if (it.kind === 'video') {
+      return `<video src="${u}" ${active ? 'autoplay' : ''} muted playsinline loop controls preload="metadata"></video>`;
+    }
+    return `<div class="blur" style="background-image:url('${u}')"></div>
+      <img src="${u}" alt="" draggable="false" onerror="this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='grid'">
+      <div class="noprev" style="display:none"><span><div>🖼</div>הדפדפן לא מצליח להציג את הפורמט הזה (למשל HEIC ב־Chrome).<br>אפשר עדיין להחליט לפי השם והתאריך.</span></div>`;
+  }
+
+  function cardHTML(it, active) {
+    return `<div class="media">${mediaHTML(it, active)}
+        <div class="stamp keep">נשאר</div><div class="stamp del">למחוק</div></div>
+      <div class="info">
+        <div class="t">${esc(it.path)}</div>
+        <div class="x"><span>${it.taken || mode === 'folder' ? '📷 ' : ''}${fmtDate(it.date)}</span><span>${fmtSize(it.size)}</span>${it.kind === 'video' ? '<span>🎬 סרטון</span>' : ''}</div>
+      </div>`;
+  }
+
+  // ---------- swipe ----------
+  const countDel = () => Object.values(S.dec).filter(v => v === 'd').length;
+
+  function renderDeck() {
+    const deck = $('deck');
+    deck.innerHTML = '';
+    const total = items.length;
+    $('progText').textContent = `${Math.min(S.idx + 1, total)} מתוך ${total}`;
+    $('delText').textContent = `🗑 ${countDel()}`;
+    $('progBar').style.width = (S.idx / total * 100) + '%';
+    $('undoBtn').disabled = S.history.length === 0;
+    if (S.idx >= total) { showReview(); return; }
+
+    const cur = items[S.idx], next = items[S.idx + 1];
+    releaseExcept(new Set([cur.key, next?.key, items[S.idx + 2]?.key]));
+    if (next) {
+      const u = document.createElement('div');
+      u.className = 'tcard under';
+      u.innerHTML = cardHTML(next, false);
+      deck.appendChild(u);
+    }
+    const c = document.createElement('div');
+    c.className = 'tcard';
+    c.innerHTML = cardHTML(cur, true);
+    deck.appendChild(c);
+    attachDrag(c);
+    // warm the cache for the one after
+    if (items[S.idx + 2] && items[S.idx + 2].kind === 'image') { const im = new Image(); im.src = urlFor(items[S.idx + 2]); }
+  }
+
+  function attachDrag(card) {
+    let sx = 0, sy = 0, dx = 0, dy = 0, dragging = false, pid = null;
+    const keep = card.querySelector('.stamp.keep'), del = card.querySelector('.stamp.del');
+    card.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('video')) return;
+      dragging = true; pid = e.pointerId; sx = e.clientX; sy = e.clientY; dx = dy = 0;
+      card.setPointerCapture(pid);
+      card.style.transition = 'none';
+    });
+    card.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== pid) return;
+      dx = e.clientX - sx; dy = e.clientY - sy;
+      card.style.transform = `translate(${dx}px, ${dy * 0.3}px) rotate(${dx / 18}deg)`;
+      keep.style.opacity = Math.max(0, Math.min(1, dx / 100));
+      del.style.opacity = Math.max(0, Math.min(1, -dx / 100));
+    });
+    const end = (e) => {
+      if (!dragging || e.pointerId !== pid) return;
+      dragging = false;
+      const th = Math.min(120, card.offsetWidth * 0.28);
+      if (dx > th) fling(card, true);
+      else if (dx < -th) fling(card, false);
+      else { card.style.transition = 'transform .25s'; card.style.transform = ''; keep.style.opacity = del.style.opacity = 0; }
+    };
+    card.addEventListener('pointerup', end);
+    card.addEventListener('pointercancel', end);
+  }
+
+  let busy = false;
+  function fling(card, isKeep) {
+    if (busy || !S || S.idx >= items.length) return;
+    busy = true;
+    card = card || $('deck').querySelector('.tcard:not(.under)');
+    if (card) {
+      card.querySelector(isKeep ? '.stamp.keep' : '.stamp.del').style.opacity = 1;
+      card.style.transition = 'transform .3s ease-out';
+      const w = window.innerWidth;
+      card.style.transform = `translate(${isKeep ? w : -w}px, 40px) rotate(${isKeep ? 30 : -30}deg)`;
+    }
+    const it = items[S.idx];
+    S.dec[it.key] = isKeep ? 'k' : 'd';
+    S.history.push(it.key);
+    S.idx++;
+    saveDecisions();
+    setTimeout(() => { busy = false; renderDeck(); }, card ? 260 : 0);
+  }
+
+  function undo() {
+    if (!S || busy) return;
+    if (!S.history.length) {
+      // allow stepping back into decisions remembered from a previous visit
+      if (S.idx === 0) return;
+    } else S.history.pop();
+    S.idx--;
+    const it = items[S.idx];
+    delete S.dec[it.key]; delete remembered[it.key]; store.set(DEC_KEY, remembered);
+    if (!$('s-swipe').classList.contains('active')) show('s-swipe');
+    renderDeck();
+  }
+
+  // ---------- review ----------
+  let gridUrls = [];
+  function showReview() {
+    show('s-review');
+    gridUrls.forEach(u => URL.revokeObjectURL(u)); gridUrls = [];
+    const del = items.filter(it => S.dec[it.key] === 'd');
+    const decided = items.filter(it => S.dec[it.key]);
+    $('stDel').textContent = del.length;
+    $('stSize').textContent = fmtSize(del.reduce((s, it) => s + it.size, 0));
+    $('stKeep').textContent = items.length - del.length;
+    $('revSub').textContent = del.length
+      ? `לחיצה על תמונה מבטלת את הסימון שלה.${S.idx < items.length ? ` עברת על ${decided.length} מתוך ${items.length}.` : ''}`
+      : 'לא סימנת שום דבר למחיקה.';
+    $('grid').innerHTML = del.map((it, i) => {
+      let inner = `<div class="fn">${esc(it.name)}</div>`;
+      if (it.kind === 'image') { const u = URL.createObjectURL(it.file); gridUrls.push(u); inner += `<img src="${u}" loading="lazy" alt="" onerror="this.remove()">`; }
+      else inner = `<div class="fn">🎬<br>${esc(it.name)}</div>`;
+      return `<div class="cell" data-k="${esc(it.key)}">${inner}<div class="badge">🗑</div></div>`;
+    }).join('');
+    $('grid').querySelectorAll('.cell').forEach(c => c.onclick = () => {
+      const k = c.dataset.k;
+      S.dec[k] = S.dec[k] === 'd' ? 'k' : 'd';
+      c.classList.toggle('off', S.dec[k] !== 'd');
+      saveDecisions();
+      updateCounts();
+    });
+    $('folderActions').style.display = mode === 'folder' && del.length ? '' : 'none';
+    $('filesActions').style.display = mode === 'files' && del.length ? '' : 'none';
+    $('backToSwipe').style.display = S.idx < items.length ? '' : 'none';
+    updateCounts();
+  }
+
+  function updateCounts() {
+    const del = items.filter(it => S.dec[it.key] === 'd');
+    $('stDel').textContent = del.length;
+    $('stSize').textContent = fmtSize(del.reduce((s, it) => s + it.size, 0));
+    $('stKeep').textContent = items.length - del.length;
+    $('deleteBtn').textContent = `מחק ${del.length} קבצים`;
+    $('deleteBtn').disabled = !del.length;
+    const { list, manual } = phonePlan();
+    $('phoneDelBtn').textContent = `כן, מחק ${list.length} תמונות מהאייפון`;
+    $('phoneDelBtn').disabled = !list.length;
+    $('manualBox').style.display = manual.length ? 'flex' : 'none';
+    $('manualNote').innerHTML = `<b>${manual.length} קבצים יצטרכו מחיקה ידנית</b> (סרטונים, או תמונות בלי זמן צילום, או תמונה שצולמה באותה שנייה בדיוק כמו תמונה ששמרת). הנה הרשימה שלהם:`;
+    $('names').textContent = manual.slice().sort((a, b) => a.date - b.date)
+      .map(it => `${it.name}   ${new Date(it.date).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`).join('\n');
+  }
+
+  async function moveToTrash(it, trash) {
+    const h = await it.parent.getFileHandle(it.name);
+    let target = it.name;
+    try { await trash.getFileHandle(target); target = Date.now() + '_' + target; } catch {}
+    if (typeof h.move === 'function') {
+      try { await h.move(trash, target); return; } catch {}
+    }
+    const nh = await trash.getFileHandle(target, { create: true });
+    const w = await nh.createWritable();
+    await w.write(await h.getFile());
+    await w.close();
+    await it.parent.removeEntry(it.name);
+  }
+
+  $('deleteBtn').onclick = async () => {
+    const del = items.filter(it => S.dec[it.key] === 'd');
+    const toTrash = $('optTrash').checked;
+    if (!toTrash && !confirm(`למחוק לצמיתות ${del.length} קבצים? אי אפשר לשחזר.`)) return;
+    try {
+      if ((await rootDir.requestPermission({ mode: 'readwrite' })) !== 'granted') { showErr('לא התקבלה הרשאת כתיבה לתיקייה.'); return; }
+    } catch {}
+    loading('מוחק…');
+    let ok = 0, bytes = 0; const failed = [];
+    const trash = toTrash ? await rootDir.getDirectoryHandle('_נמחקו', { create: true }) : null;
+    for (let i = 0; i < del.length; i++) {
+      const it = del[i];
+      $('loadingText').textContent = `${toTrash ? 'מעביר' : 'מוחק'}… ${i + 1}/${del.length}`;
+      try {
+        if (toTrash) await moveToTrash(it, trash);
+        else await it.parent.removeEntry(it.name);
+        ok++; bytes += it.size;
+        delete remembered[it.key];
+      } catch (e) { failed.push(it.path); }
+    }
+    store.set(DEC_KEY, remembered);
+    releaseExcept(new Set());
+    $('doneTitle').textContent = `${ok} קבצים ${toTrash ? 'הועברו ל־_נמחקו' : 'נמחקו'}`;
+    $('doneSub').textContent = (toTrash
+      ? `כשתהיה בטוח, מחק את התיקייה _נמחקו כדי לפנות ${fmtSize(bytes)}.`
+      : `פינית ${fmtSize(bytes)}.`) + (failed.length ? ` ${failed.length} קבצים לא נמחקו: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}` : '');
+    show('s-done');
+  };
+
+  // ---------- iPhone deletion via Shortcuts ----------
+  const SHORTCUT = 'Swipeclean';
+  function phonePlan() {
+    const del = items.filter(it => S.dec[it.key] === 'd');
+    const keptTimes = new Set(items.filter(it => S.dec[it.key] !== 'd' && it.taken).map(it => it.taken));
+    const list = [], manual = [];
+    for (const it of del) (it.taken && !keptTimes.has(it.taken) ? list : manual).push(it);
+    return { list, manual };
+  }
+  let lastPayload = '', lastSent = [];
+  const shortcutUrl = () => 'shortcuts://run-shortcut?name=' + encodeURIComponent(SHORTCUT) +
+    (lastPayload.length < 30000 ? '&input=text&text=' + encodeURIComponent(lastPayload) : '');
+  async function copyPayload() {
+    try { await navigator.clipboard.writeText(lastPayload); return; } catch {}
+    try { const t = $('payloadBox'); t.value = lastPayload; t.select(); document.execCommand('copy'); } catch {}
+  }
+  function openShortcut() {
+    const url = 'shortcuts://run-shortcut?name=' + encodeURIComponent(SHORTCUT) +
+      (lastPayload.length < 30000 ? '&input=text&text=' + encodeURIComponent(lastPayload) : '');
+    try { window.top.location.href = url; } catch { location.href = url; }
+  }
+  $('phoneDelBtn').onclick = async () => {
+    const { list } = phonePlan();
+    if (!list.length) return;
+    if (!confirm(`למחוק ${list.length} תמונות מהאייפון?\nהן יעברו ל"נמחקו לאחרונה" ל-30 יום.`)) return;
+    const times = [...new Set(list.map(it => it.taken))].sort();
+    const ms = list.map(it => it.date);
+    lastPayload = JSON.stringify({
+      from: fmtStamp(Math.min(...ms) - 60000),
+      to: fmtStamp(Math.max(...ms) + 60000),
+      count: list.length,
+      times: times.join('|')
+    });
+    lastSent = list;
+    $('payloadBox').value = lastPayload;
+    await copyPayload();
+    $('sentAgain').href = shortcutUrl();
+    $('sentSub').textContent = `שלחתי ${list.length} תמונות לקיצור הדרך Swipeclean. האייפון ישאל אם למחוק אותן. אשר, ואז חזור לכאן.`;
+    show('s-sent');
+    openShortcut();
+  };
+  $('sentAgain').onclick = () => { copyPayload(); };
+  $('sentBack').onclick = showReview;
+  $('sentDone').onclick = () => {
+    lastSent.forEach(it => delete remembered[it.key]);
+    store.set(DEC_KEY, remembered);
+    $('doneTitle').textContent = `${lastSent.length} תמונות נמחקו מהאייפון`;
+    $('doneSub').textContent = `פינית בערך ${fmtSize(lastSent.reduce((s, it) => s + it.size, 0))}. כדי לפנות את המקום מיד, רוקן את "נמחקו לאחרונה" באפליקציית התמונות.`;
+    releaseExcept(new Set());
+    show('s-done');
+  };
+  let setupFrom = 's-start';
+  const openSetup = (from) => { setupFrom = from; show('s-setup'); };
+  $('howShortcut1').onclick = () => openSetup('s-start');
+  $('howShortcut2').onclick = () => openSetup('s-review');
+  $('setupBack').onclick = () => setupFrom === 's-review' ? showReview() : show('s-start');
+
+  $('copyNames').onclick = async () => {
+    try { await navigator.clipboard.writeText($('names').textContent); $('copyNames').textContent = 'הועתק ✓'; }
+    catch { $('copyNames').textContent = 'לא הצלחתי להעתיק'; }
+    setTimeout(() => $('copyNames').textContent = 'העתק רשימה', 1800);
+  };
+  if ($('dlNames')) $('dlNames').onclick = () => {
+    const blob = new Blob(['﻿' + $('names').textContent], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'to-delete.txt'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  function reset() { releaseExcept(new Set()); items = []; S = null; rootDir = null; mode = null; $('hdr').textContent = ''; show('s-start'); }
+  $('keepBtn').onclick = () => fling(null, true);
+  $('delBtn').onclick = () => fling(null, false);
+  $('undoBtn').onclick = undo;
+  $('finishEarly').onclick = showReview;
+  $('backToSwipe').onclick = () => { show('s-swipe'); renderDeck(); };
+  $('restart').onclick = reset;
+  $('again').onclick = reset;
+
+  document.addEventListener('keydown', (e) => {
+    if (!$('s-swipe').classList.contains('active')) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); fling(null, true); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); fling(null, false); }
+    else if (e.key === 'Backspace' || (e.key === 'z' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); undo(); }
+  });
+})();
+</script>
+</body>
+</html>
